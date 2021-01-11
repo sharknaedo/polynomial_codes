@@ -1,5 +1,6 @@
 showOn = false; 
-clc
+clc; format compact
+
 %making matrix A
 a1 = [[1,2];[2,1]]; 
 a2 = a1 + fliplr(eye(2)); 
@@ -67,7 +68,8 @@ subshare_poly_B = { {B_10, B_11}, {B_20,B_21}, {B_30, B_31}, {B_40,B_41} };
 for n = 1:4
     for j = 1:2
         for ndash = 1:4
-            intermediate_subshares_B(:,:,n,j,ndash) = mod(subshare_poly_B{n}{j}(ndash),p);
+            intermediate_subshares_B(:,:,n,j,ndash) = ... 
+                mod(subshare_poly_B{n}{j}(ndash),p);
         end
     end
 end
@@ -82,7 +84,8 @@ subshares_B = zeros(m,m,N,N);
 for n=1:4
     for ndash = 1:4
         subshares_B(:,:,n,ndash) = mod(... 
-            intermediate_subshares_B(:,:,n,1,ndash) + ndash * intermediate_subshares_B(:,:,n,2,ndash), ...
+            intermediate_subshares_B(:,:,n,1,ndash) ...
+            + ndash * intermediate_subshares_B(:,:,n,2,ndash), ...
             p);
     end
 end
@@ -102,11 +105,21 @@ B_3 = @(x) B_30(x) + B_31(x)*x;
 B_4 = @(x) B_40(x) + B_41(x)*x;
 
 if (showOn == true)
-    syms x; assume(x, 'real')
+    syms x; assume(x, 'real');
     fprintf ("B_n(x) for n = 1,2,3,4: \n \n"); 
     disp(expand(B_1(x))); disp( expand(B_2(x)) ); 
     disp(expand(B_4(x))); disp(expand(B_4(x))); 
 end
+
+poly_subshare_B = {B_1, B_2, B_3, B_4}; 
+for n = 1:4
+    for ndash = 1:4
+        indep_calc_subshare_B(:,:,n,ndash) = mod( ...
+            poly_subshare_B{n}(ndash), p);
+    end
+end
+% Verified against subshares_B.
+% indep_calc_subshare_B - subshares_B
 
 % Stage 3: Computing on subshares 
 syms x; assume(x, 'real');
@@ -118,18 +131,19 @@ AB_4 = expand(A_4(x)*B_4(x)');
 poly_AB = {AB_1, AB_2, AB_3, AB_4}; 
 
 % taking each coefficients modulo `p` 
-for n=1:4 % for each AB_n
-    for i = 1:4 % each row of the code
-        for j = 1:2 % each column of code
-            poly_AB{n}(i,j) = poly2sym( mod(coeffs(poly_AB{n}(i,j)), p) ); 
-        end
-    end
-    % display if appropriate setting is true 
+% for n=1:4 % for each AB_n
+%     for i = 1:4 % each row of the code
+%         for j = 1:2 % each column of code
+%             poly_AB{n}(i,j) = poly2sym( mod(coeffs(poly_AB{n}(i,j)), p) ); 
+%         end
+%     end
+%     display if appropriate setting is true 
+% 
+% end
     if(showOn == true) 
         fprintf ("Subsharing polynomial of AB' held by %d\n", n); 
-        disp ( poly_AB{n} ); 
+        disp ( poly_AB ); 
     end
-end
 % Constructing the local shares of AB' at each worker.
 subshares_AB = zeros(4,2,4,4);
 for n=1:4
@@ -174,9 +188,9 @@ syms x; assume(x,'real');
 for n=1:4
     for ndash=1:4
         x = ndash;
-        subshares_C(:,:,n,ndash) = mod(subs(poly_AB{n}) ... % subshares_AB(:,:,n,ndash) ... 
-            - (ndash^2) * ( subshare_O(:,:,n,2,ndash) + ... 
-                    ndash*subshare_O(:,:,n,1,ndash) ) ...
+        subshares_C(:,:,n,ndash) = mod( subshares_AB(:,:,n,ndash) ... 
+            - (ndash^2) * subshare_O(:,:,n,2,ndash) ... 
+                   - (ndash^3)*subshare_O(:,:,n,1,ndash) ...
             ,p);
     end
 end
@@ -191,6 +205,14 @@ end
 % A_n(x)B_n(x) - x^m (O^n_0 + xO^n_1)
 % This is for this case only. Theoretically, 
 % each worker should have subshare_poly_C(:,:,n)(ndash)
+for n=1:4
+    for ndash = 1:4
+        x = ndash;
+        indep_calc_subshare_AB (:,:,n,ndash) = mod( ...
+            subs( poly_AB{n}), p);
+    end
+end
+
 syms x; assume(x,'real'); 
 for n=1:4
     subshare_poly_C(:,:,n) = expand ( poly_AB{n} - ... 
@@ -201,13 +223,13 @@ if ( showOn == true )
     subshare_poly_C
 end
     
-% for n=1:4
-%     for ndash = 1:4
-%         x = ndash;
-%         eval_C(:,:,n,ndash) = mod( subs(subshare_poly_C(:,:,n)), p ); 
-%     end
-% end
-% syms x
+for n=1:4
+    for ndash = 1:4
+        x = ndash;
+        eval_C(:,:,n,ndash) = mod( subs(subshare_poly_C(:,:,n)), p ); 
+    end
+end
+syms x
 
 % Stage 4: The recombination at the master node. 
 considered_workers = 1:3; 
