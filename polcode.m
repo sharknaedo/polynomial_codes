@@ -41,7 +41,7 @@ end
 
 % The workers who actually return a value to the
 % master node are considered. 
-considered_workers = 1:num_workers;
+considered_workers = 1:3;
 C_considered = C(considered_workers);
 
 % Getting master node ready for reconstruction.
@@ -55,7 +55,7 @@ dinv = mod (rem, p);
 
 % Master node reconstruction 
 ATB = mod( det(m)*inv(m)*reshaped_worker_product, p);
-ATB =  mod(dinv * reshape (ATB, N,N), p)
+ATB =  mod(dinv * reshape (ATB, 3,1), p)
 
 % Printing for comparision
 mod(A'*B, p)

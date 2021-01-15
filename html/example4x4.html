@@ -6,7 +6,7 @@
    <!--
 This HTML was auto-generated from MATLAB code.
 To make changes, update the MATLAB code and republish this document.
-      --><title>example4x4</title><meta name="generator" content="MATLAB 9.9"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2021-01-11"><meta name="DC.source" content="example4x4.m"><style type="text/css">
+      --><title>example4x4</title><meta name="generator" content="MATLAB 9.9"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2021-01-15"><meta name="DC.source" content="example4x4.m"><style type="text/css">
 html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-size:100%;vertical-align:baseline;background:transparent}body{line-height:1}ol,ul{list-style:none}blockquote,q{quotes:none}blockquote:before,blockquote:after,q:before,q:after{content:'';content:none}:focus{outine:0}ins{text-decoration:none}del{text-decoration:line-through}table{border-collapse:collapse;border-spacing:0}
 
 html { min-height:100%; margin-bottom:1px; }
@@ -67,23 +67,23 @@ table td { padding:7px 5px; text-align:left; vertical-align:top; border:1px soli
 
 
 
-  </style></head><body><div class="content"><pre class="codeinput">showOn = false;
-clc
+  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#1">Example Code for Secure, Distributed Matrix Multiplication.</a></li><li><a href="#2">Stage 1: polynomial codes of A and B</a></li><li><a href="#3">Stage 2(A): subsharing A</a></li><li><a href="#4">Stage 2(B): subsharing B</a></li><li><a href="#5">Stage 2(B)(hidden): Each party `n` also forms B_n(x).</a></li><li><a href="#6">Stage 3: Computing on subshares</a></li><li><a href="#7">Stage(3)(Hidden)</a></li><li><a href="#8">Stage 4: The recombination at the master node.</a></li></ul></div><h2 id="1">Example Code for Secure, Distributed Matrix Multiplication.</h2><p>This code goes through the calculations of multiplying 2 $ 4 \times 4 $ matrices, each split into submatrices of size <img src="example4x4_eq09864045962654821277.png" alt="$4 \times 2$"> each. All calculations are in the finite field <img src="example4x4_eq03500024651323418853.png" alt="$F_{11}$">. There are 4 workers to distribute among, and we specify <img src="example4x4_eq12149528063450899111.png" alt="$t = 1$">.</p><pre class="codeinput"><span class="comment">% Formatting options</span>
+showOn = true;
+clc; format <span class="string">compact</span>
+
 <span class="comment">%making matrix A</span>
 a1 = [[1,2];[2,1]];
 a2 = a1 + fliplr(eye(2));
 a3 = a2 + fliplr(eye(2));
 a4 = a3 + fliplr(eye(2));
-A = [ [a1,a2];[a3,a4] ];
+mat_A = [ [a1,a2];[a3,a4] ];
 
 <span class="comment">% matrix B</span>
 B = eye(4);
 
 <span class="comment">% other parameters :</span>
 N = 4; t = 1; m = 2; z = 4; p = 11;
-
-<span class="comment">% Stage 1: polynomial codes of A and B</span>
-A = @(x) [a1;a3] + [a2;a4]*x + [[3,2];[1,4];[4,2];[2,3]]*x^2;
+</pre><h2 id="2">Stage 1: polynomial codes of A and B</h2><p>We construct the direct polynomial code to share A and B to the worker nodes. Here, the <img src="example4x4_eq05807738850268083431.png" alt="$deg(A) = deg(B) = 2$">, as each code is of degree <img src="example4x4_eq16392199475674355659.png" alt="$m+t-1$">.</p><pre class="codeinput">A = @(x) [a1;a3] + [a2;a4]*x + [[3,2];[1,4];[4,2];[2,3]]*x^2;
 B = @(x) B(:,1:2) + B(:,3:4)*x + [[5,6];[1,3];[2,4];[1,2]]*x^2;
 
 <span class="comment">% each worker `n` receives A(n) and B(n)</span>
@@ -97,9 +97,32 @@ B = @(x) B(:,1:2) + B(:,3:4)*x + [[5,6];[1,3];[2,4];[1,2]]*x^2;
     fprintf(<span class="string">"\nShares of B:\n"</span>);
     disp (share_B)
 <span class="keyword">end</span>
+</pre><pre class="codeoutput">Shares of A:
+(:,:,1) =
+     5     7
+     6     6
+     6     0
+     0     5
+(:,:,2) =
+     4     5
+     1     8
+     8     0
+     0     4
+(:,:,3) =
+     9     7
+     9     7
+     7     4
+     4     9
+(:,:,4) =
+     9     2
+     8     3
+     3     1
+     1     9
 
-<span class="comment">% Stage 2(A): subsharing A</span>
-A_1 = @(x) share_A(:,:,1) + [[9,7];[10,2];[2,4];[0,7]]*x + <span class="keyword">...</span>
+Shares of B:
+(:,:,1) =
+     6     6
+...</pre><h2 id="3">Stage 2(A): subsharing A</h2><p>Each worker node now sub-shares their share using a direct code again, of degree $ m + t - 1 $ again. This will later enable each worker to compute subshares of the desired product <img src="example4x4_eq18236626740389522815.png" alt="$A^T B$">.</p><pre class="codeinput">A_1 = @(x) share_A(:,:,1) + [[9,7];[10,2];[2,4];[0,7]]*x + <span class="keyword">...</span>
             [[0,0];[0,6];[2,9];[11,2];]*(x^2);
 A_2 = @(x) share_A(:,:,2) + [[7,6];[7,3];[3,10];[4,3]]*x + <span class="keyword">...</span>
             [[3,4];[2,11];[3,5];[5,3];]*(x^2);
@@ -107,8 +130,10 @@ A_3 = @(x) share_A(:,:,3) + [[10,3];[11,5];[5,7];[2,3]]*x + <span class="keyword
             [[7,4];[8,4];[3,5];[2,6];]*(x^2);
 A_4 = @(x) share_A(:,:,4) + [[1,0];[3,9];[9,6];[1,7]]*x + <span class="keyword">...</span>
             [[3,6];[6,3];[0,6];[7,7];]*(x^2);
-
 subshare_poly_A = {A_1, A_2, A_3, A_4};
+
+<span class="comment">% Computing each worker's subshare. i.e. each worker `j` receives $A_i(j)$,</span>
+<span class="comment">% $\forall i \in [N]$.</span>
 <span class="keyword">for</span> n=1:4
     <span class="keyword">for</span> ndash = 1:4
         subshares_A(:,:,n,ndash) = mod ( subshare_poly_A{n}(ndash), p);
@@ -118,9 +143,32 @@ subshare_poly_A = {A_1, A_2, A_3, A_4};
     fprintf(<span class="string">"Subshares of A:\n"</span>);
     disp (subshares_A)
 <span class="keyword">end</span>
-
-<span class="comment">%Stage 2(B): subsharing B</span>
-B_10 = @(x) share_B(1:2,:,1) + [[3,7];[5,0]]*x + [[5,4];[0,8]]*(x^2);
+</pre><pre class="codeoutput">Subshares of A:
+(:,:,1,1) =
+     3     3
+     5     3
+    10     2
+     0     3
+(:,:,2,1) =
+     3     4
+    10     0
+     3     4
+     9    10
+(:,:,3,1) =
+     4     3
+     6     5
+     4     5
+     8     7
+(:,:,4,1) =
+     2     8
+     6     4
+     1     2
+     9     1
+(:,:,1,2) =
+     1    10
+     4     1
+     7     0
+...</pre><h2 id="4">Stage 2(B): subsharing B</h2><p>Each worker now subshares B using two codes. Both of these are designed so that they can be locally recombined by each worker to form the actual subshare of B. In our example, each worker `n` sends out <img src="example4x4_eq15733792378956474255.png" alt="$B_{n}^0(n')$"> and <img src="example4x4_eq13332234784201919352.png" alt="$B_{n}^1(n')$"> to worker n'. Then, worker n' can recombine their shares as <img src="example4x4_eq01151937731356619318.png" alt="$B_{n}^0(n') + n' * B_{n}^1(n')$"> i.e. compute shares of <img src="example4x4_eq04640498997702185125.png" alt="$B_{n}^0(x) + x * B_{n}^1(x)$">.</p><pre class="codeinput">B_10 = @(x) share_B(1:2,:,1) + [[3,7];[5,0]]*x + [[5,4];[0,8]]*(x^2);
 B_11 = @(x) share_B(3:4,:,1) + [[8,8];[6,8]]*x;
 
 B_20 = @(x) share_B(1:2,:,2) + [[1,10];[7,8]]*x + [[3,6];[5,0]]*(x^2);
@@ -133,10 +181,14 @@ B_40 = @(x) share_B(1:2,:,4) + [[9,7];[3,1]]*x + [[5,2];[4,2]]*(x^2);
 B_41 = @(x) share_B(3:4,:,4) + [[7,10];[2,10]]*x;
 
 subshare_poly_B = { {B_10, B_11}, {B_20,B_21}, {B_30, B_31}, {B_40,B_41} };
+
+<span class="comment">% Each worker n' receives the two shares of $B_{n}^0(n')$ and $ B_{n}^1(n')$</span>
+<span class="comment">% from worker n.</span>
 <span class="keyword">for</span> n = 1:4
     <span class="keyword">for</span> j = 1:2
         <span class="keyword">for</span> ndash = 1:4
-            intermediate_subshares_B(:,:,n,j,ndash) = mod(subshare_poly_B{n}{j}(ndash),p);
+            intermediate_subshares_B(:,:,n,j,ndash) = <span class="keyword">...</span>
+                mod(subshare_poly_B{n}{j}(ndash),p);
         <span class="keyword">end</span>
     <span class="keyword">end</span>
 <span class="keyword">end</span>
@@ -151,7 +203,8 @@ subshares_B = zeros(m,m,N,N);
 <span class="keyword">for</span> n=1:4
     <span class="keyword">for</span> ndash = 1:4
         subshares_B(:,:,n,ndash) = mod(<span class="keyword">...</span>
-            intermediate_subshares_B(:,:,n,1,ndash) + ndash * intermediate_subshares_B(:,:,n,2,ndash), <span class="keyword">...</span>
+            intermediate_subshares_B(:,:,n,1,ndash) <span class="keyword">...</span>
+            + ndash * intermediate_subshares_B(:,:,n,2,ndash), <span class="keyword">...</span>
             p);
     <span class="keyword">end</span>
 <span class="keyword">end</span>
@@ -159,26 +212,63 @@ subshares_B = zeros(m,m,N,N);
     fprintf(<span class="string">"Recombined subshares of B_n(x), locally computed:\n"</span>);
     disp(subshares_B)
 <span class="keyword">end</span>
-
-<span class="comment">% Stage 2(B)(hidden): Each party `n` also forms B_n(x).</span>
-<span class="comment">% This is the polynomial that from which the shares in</span>
-<span class="comment">% recom_subshares_B are created. Importantly, those shares</span>
-<span class="comment">% are independently and locally calculated. Here, we need</span>
-<span class="comment">% B_n(x) for Stage i.e. to calculate the O polynomials.</span>
-B_1 = @(x) B_10(x) + B_11(x)*x;
+</pre><pre class="codeoutput">Received intermediate subshares of B:
+(:,:,1,1,1) =
+     3     6
+     6     1
+(:,:,2,1,1) =
+     3     7
+     5    10
+(:,:,3,1,1) =
+     1     0
+     5     5
+(:,:,4,1,1) =
+     7     6
+     1     8
+(:,:,1,2,1) =
+     0     1
+     7     0
+(:,:,2,2,1) =
+     1     2
+     3     4
+(:,:,3,2,1) =
+     9     1
+     9     3
+(:,:,4,2,1) =
+    10     8
+     7     2
+...</pre><h2 id="5">Stage 2(B)(hidden): Each party `n` also forms B_n(x).</h2><p>This is the polynomial that from which the shares in recom_subshares_B are created. Each worker `n` has the polynomials to do so Here, we need B_n(x) for Stage 3 i.e. to calculate the O polynomials. But, this also helps us verify that the previous stage is correct.</p><pre class="codeinput">B_1 = @(x) B_10(x) + B_11(x)*x;
 B_2 = @(x) B_20(x) + B_21(x)*x;
 B_3 = @(x) B_30(x) + B_31(x)*x;
 B_4 = @(x) B_40(x) + B_41(x)*x;
 
 <span class="keyword">if</span> (showOn == true)
-    syms <span class="string">x</span>; assume(x, <span class="string">'real'</span>)
+    syms <span class="string">x</span>; assume(x, <span class="string">'real'</span>);
     fprintf (<span class="string">"B_n(x) for n = 1,2,3,4: \n \n"</span>);
     disp(expand(B_1(x))); disp( expand(B_2(x)) );
     disp(expand(B_4(x))); disp(expand(B_4(x)));
 <span class="keyword">end</span>
 
-<span class="comment">% Stage 3: Computing on subshares</span>
-syms <span class="string">x</span>; assume(x, <span class="string">'real'</span>);
+poly_subshare_B = {B_1, B_2, B_3, B_4};
+<span class="keyword">for</span> n = 1:4
+    <span class="keyword">for</span> ndash = 1:4
+        indep_calc_subshare_B(:,:,n,ndash) = mod( <span class="keyword">...</span>
+            poly_subshare_B{n}(ndash), p);
+    <span class="keyword">end</span>
+<span class="keyword">end</span>
+<span class="comment">% Verified against subshares_B.</span>
+<span class="comment">% indep_calc_subshare_B - subshares_B</span>
+</pre><pre class="codeoutput">B_n(x) for n = 1,2,3,4: 
+ 
+[13*x^2 + 6*x + 6, 12*x^2 + 11*x + 6]
+[ 6*x^2 + 6*x + 1,  16*x^2 + 3*x + 4]
+[5*x^2 + 11*x + 10, 14*x^2 + 15*x + 2]
+[15*x^2 + 11*x + 4,  5*x^2 + 18*x + 2]
+[12*x^2 + 12*x + 4, 12*x^2 + 16*x + 8]
+[  6*x^2 + 8*x + 5,  12*x^2 + 4*x + 5]
+[12*x^2 + 12*x + 4, 12*x^2 + 16*x + 8]
+[  6*x^2 + 8*x + 5,  12*x^2 + 4*x + 5]
+</pre><h2 id="6">Stage 3: Computing on subshares</h2><p>Each worker n can compute the product of the subsharing polynomials they used. Locally, each worker n' can compute the product of the subshares they received, and both are guaranteed to be the same. We verify that that is indeed the case.</p><pre class="codeinput">syms <span class="string">x</span>; assume(x, <span class="string">'real'</span>);
 AB_1 = expand(A_1(x)*B_1(x)');
 AB_2 = expand(A_2(x)*B_2(x)');
 AB_3 = expand(A_3(x)*B_3(x)');
@@ -193,13 +283,16 @@ poly_AB = {AB_1, AB_2, AB_3, AB_4};
             poly_AB{n}(i,j) = poly2sym( mod(coeffs(poly_AB{n}(i,j)), p) );
         <span class="keyword">end</span>
     <span class="keyword">end</span>
-    <span class="comment">% display if appropriate setting is true</span>
-    <span class="keyword">if</span>(showOn == true)
-        fprintf (<span class="string">"Subsharing polynomial of AB' held by %d\n"</span>, n);
-        disp ( poly_AB{n} );
-    <span class="keyword">end</span>
+<span class="comment">%     display if appropriate setting is true</span>
+
 <span class="keyword">end</span>
+<span class="keyword">if</span>(showOn == true)
+    fprintf (<span class="string">"Subsharing polynomial of AB' held by %d\n"</span>, n);
+    disp ( poly_AB );
+<span class="keyword">end</span>
+
 <span class="comment">% Constructing the local shares of AB' at each worker.</span>
+<span class="comment">% Each worker now computes the local product of the shares they have.</span>
 subshares_AB = zeros(4,2,4,4);
 <span class="keyword">for</span> n=1:4
     <span class="keyword">for</span> ndash = 1:4
@@ -209,8 +302,13 @@ subshares_AB = zeros(4,2,4,4);
     <span class="keyword">end</span>
 <span class="keyword">end</span>
 
-<span class="comment">% Constructing the O polynomials. Hardcoded for now.</span>
-<span class="comment">% Each O^(n)_j (x) =</span>
+<span class="comment">% Constructing the O polynomials. Hardcoded for now. These are to help us</span>
+<span class="comment">% reduce the degree of the underlying polynomial of the product of</span>
+<span class="comment">% subshares we computed above. Each subshare of $A^T B$ lies on a degree</span>
+<span class="comment">% $2(m+t-1)$ polynomial, and we must reduce it to $m+t-1$. (Here, 2).</span>
+<span class="comment">% Each $O^(n)_k (x) = \Sigma_{l=0}^{t-1} R_{k,l} + x^t (D^(n)_{2k} -</span>
+<span class="comment">% R_{k+1,t-1})$. This way, all terms of degree higher than $m+t-1$ are</span>
+<span class="comment">% cancelled out.</span>
 O_11 = @(x) [[9,7];[10,2];[2,4];[0,7]] + [[0,0];[6,8];[3,6];[8,9]]*x;
 O_10 = @(x) [[0,0];[0,6];[2,9];[0,2]] + [[8,4];[10,4];[4,6];[9,3]]*x;
 
@@ -243,9 +341,9 @@ syms <span class="string">x</span>; assume(x,<span class="string">'real'</span>)
 <span class="keyword">for</span> n=1:4
     <span class="keyword">for</span> ndash=1:4
         x = ndash;
-        subshares_C(:,:,n,ndash) = mod(subs(poly_AB{n}) <span class="keyword">...</span><span class="comment"> % subshares_AB(:,:,n,ndash) ...</span>
-            - (ndash^2) * ( subshare_O(:,:,n,2,ndash) + <span class="keyword">...</span>
-                    ndash*subshare_O(:,:,n,1,ndash) ) <span class="keyword">...</span>
+        subshares_C(:,:,n,ndash) = mod( subs(poly_AB{n}) <span class="keyword">...</span><span class="comment"> %subshares_AB(:,:,n,ndash) ...</span>
+            - (ndash^2) * subshare_O(:,:,n,2,ndash) <span class="keyword">...</span>
+                   - (ndash^3)*subshare_O(:,:,n,1,ndash) <span class="keyword">...</span>
             ,p);
     <span class="keyword">end</span>
 <span class="keyword">end</span>
@@ -253,13 +351,39 @@ syms <span class="string">x</span>; assume(x,<span class="string">'real'</span>)
     fprintf (<span class="string">"Each worker's subshares of C:\n"</span>);
     subshares_C
 <span class="keyword">end</span>
+</pre><pre class="codeoutput">Subsharing polynomial of AB' held by 4
+    {4&times;2 sym}    {4&times;2 sym}    {4&times;2 sym}    {4&times;2 sym}
+Each worker now receives the O shares: 
 
-<span class="comment">% Stage(3)(Hidden)</span>
-<span class="comment">% Now we can form the polynomial forms of the</span>
-<span class="comment">% subshares of C, given by the formula</span>
-<span class="comment">% A_n(x)B_n(x) - x^m (O^n_0 + xO^n_1)</span>
-<span class="comment">% This is for this case only. Theoretically,</span>
-<span class="comment">% each worker should have subshare_poly_C(:,:,n)(ndash)</span>
+(:,:,1,1,1) =
+     9     7
+     5    10
+     5    10
+     8     5
+(:,:,2,1,1) =
+     3     1
+     2     0
+     1     7
+     2     9
+(:,:,3,1,1) =
+     5     5
+     5     8
+     8     4
+     8    10
+(:,:,4,1,1) =
+     8     0
+     5     3
+     5     4
+     2     3
+(:,:,1,2,1) =
+...</pre><h2 id="7">Stage(3)(Hidden)</h2><p>Now we can form the polynomial forms of the subshares of C, given by the formula A_n(x)B_n(x) - x^m (O^n_0 + xO^n_1) Theoretically, each worker should have subshare_poly_C(:,:,n)(ndash), i.e. share of a degree 2 polynomial. Verified.</p><pre class="codeinput"><span class="keyword">for</span> n=1:4
+    <span class="keyword">for</span> ndash = 1:4
+        x = ndash;
+        indep_calc_subshare_AB (:,:,n,ndash) = mod( <span class="keyword">...</span>
+            subs( poly_AB{n}), p);
+    <span class="keyword">end</span>
+<span class="keyword">end</span>
+
 syms <span class="string">x</span>; assume(x,<span class="string">'real'</span>);
 <span class="keyword">for</span> n=1:4
     subshare_poly_C(:,:,n) = expand ( poly_AB{n} - <span class="keyword">...</span>
@@ -276,24 +400,97 @@ syms <span class="string">x</span>; assume(x,<span class="string">'real'</span>)
         eval_C(:,:,n,ndash) = mod( subs(subshare_poly_C(:,:,n)), p );
     <span class="keyword">end</span>
 <span class="keyword">end</span>
-syms <span class="string">x</span>
-
-<span class="comment">% Stage 4: The recombination at the master node.</span>
-m = fliplr(vander(1:4));
+syms <span class="string">x</span>; assume(x, <span class="string">'real'</span>);
+</pre><pre class="codeoutput">Polynomial form of the shares of C at each worker:
+subshare_poly_C(:,:,1) =
+[- 11*x^3 + 5*x^2 + 5*x + 3, - 11*x^3 + 8*x + 1]
+[      - 11*x^3 + 4*x^2 + 6,          8 - 4*x^2]
+[                   9*x + 2,      x^2 + 5*x + 2]
+[           6*x^2 + 7*x + 2,   8*x^2 + 8*x + 10]
+subshare_poly_C(:,:,2) =
+[ - 11*x^3 + 5*x^2 + 3*x + 5, - 4*x^2 + 9*x + 10]
+[                 5*x^2 + 10,   3*x^2 + 10*x + 8]
+[- 11*x^3 + 8*x^2 + 10*x + 8,    3*x^2 + 9*x + 4]
+[          - 7*x^2 + 8*x + 1,            8*x + 2]
+subshare_poly_C(:,:,3) =
+[        - 4*x^2 + 10*x + 1,        - 6*x^2 + 4*x + 1]
+[         - 3*x^2 + 6*x + 3,         - 11*x^3 + x + 5]
+[- 11*x^3 - 4*x^2 + 4*x + 9,          4*x^2 + 3*x + 3]
+[           2*x^2 + 2*x + 1, - 11*x^3 + 4*x^2 + x + 6]
+subshare_poly_C(:,:,4) =
+[         - 4*x^2 + x + 9, - 2*x^4 - 11*x^3 + 8*x^2 + 10*x + 2]
+[               8*x^2 + 9,                    - x^2 + 10*x + 6]
+[- 11*x^3 - 4*x^2 + x + 6,          - 11*x^3 - 8*x^2 + 7*x + 6]
+[         7*x^2 + 6*x + 3,          - 11*x^3 - 3*x^2 + 9*x + 5]
+</pre><h2 id="8">Stage 4: The recombination at the master node.</h2><p>Each node recombines their subshares of <img src="example4x4_eq08268032038730240599.png" alt="$C = A^T B$"> using coefficients <img src="example4x4_eq15896030900569745818.png" alt="$\lambda_1,\ldots,\lambda_N$">. They send these shares to the master node, who will interpolate on them to construct the final product.</p><pre class="codeinput">considered_workers = 1:3;
+m = fliplr(vander(considered_workers));
 minv = floor(mod(inv(m) * det(m),p));
+dinv = find ( mod((1:p)*det(m), p) == 1);
 
+lambda = mod ( dinv * minv (1,:), p);
+share_C = zeros(4,2,length(considered_workers));
+<span class="keyword">for</span> n=considered_workers
+    <span class="keyword">for</span> ndash = considered_workers
+        share_C(:,:,n) = mod( share_C(:,:,n) + <span class="keyword">...</span>
+            lambda(ndash)*subshares_C(:,:,n,ndash), p);
+    <span class="keyword">end</span>
+<span class="keyword">end</span>
+<span class="keyword">if</span> ( showOn == true )
+    fprintf (<span class="string">"Each worker has the share of C: \n"</span>);
+    disp (share_C);
+<span class="keyword">end</span>
+c_0 = zeros(4,2); c_1 = zeros(4,2); c_2 = zeros(4,2);
+<span class="keyword">for</span> i=considered_workers
+    <span class="keyword">for</span> j=1:m
+        temp = mod( <span class="keyword">...</span>
+            dinv * m * [share_C(i,j,1), share_C(i,j,2), share_C(i,j,3)]'<span class="keyword">...</span>
+            ,p);
+        c_o(i,j) = temp(1); c_1(i,j) = temp(2); c_2(i,j) = temp(3);
+    <span class="keyword">end</span>
+<span class="keyword">end</span>
+
+C = [c_0, c_1]
 
 <span class="comment">% NOTES: try: syms y; assume(y,'real'); expand(A_1(y)*B_1(y)')</span>
+</pre><pre class="codeoutput">Each worker has the share of C: 
+(:,:,1) =
+     3     1
+     6     8
+     2     2
+     2    10
+(:,:,2) =
+     5    10
+    10     8
+     8     4
+     1     2
+(:,:,3) =
+     1     1
+     3     5
+     9     3
+     1     6
+C =
+     0     0     3     0
+     0     0     8     0
+     0     0     5     0
+     0     0     0     0
 </pre><p class="footer"><br><a href="https://www.mathworks.com/products/matlab/">Published with MATLAB&reg; R2020b</a><br></p></div><!--
 ##### SOURCE BEGIN #####
-showOn = false; 
-clc
+%% Example Code for Secure, Distributed Matrix Multiplication.
+% This code goes through the calculations of multiplying 2 $ 4 \times 4 $
+% matrices, each split into submatrices of size $4 \times 2$ each. All
+% calculations are in the finite field $F_{11}$.
+% There are 4 workers to distribute among, and we specify $t = 1$. 
+
+% Formatting options
+showOn = true; 
+clc; format compact
+
 %making matrix A
 a1 = [[1,2];[2,1]]; 
 a2 = a1 + fliplr(eye(2)); 
 a3 = a2 + fliplr(eye(2)); 
 a4 = a3 + fliplr(eye(2)); 
-A = [ [a1,a2];[a3,a4] ];
+mat_A = [ [a1,a2];[a3,a4] ];
 
 % matrix B
 B = eye(4); 
@@ -301,7 +498,10 @@ B = eye(4);
 % other parameters :
 N = 4; t = 1; m = 2; z = 4; p = 11;
 
-% Stage 1: polynomial codes of A and B
+%% Stage 1: polynomial codes of A and B
+% We construct the direct polynomial code to share A and B to the worker
+% nodes. Here, the $deg(A) = deg(B) = 2$, as each code is of degree 
+% $m+t-1$. 
 A = @(x) [a1;a3] + [a2;a4]*x + [[3,2];[1,4];[4,2];[2,3]]*x^2;
 B = @(x) B(:,1:2) + B(:,3:4)*x + [[5,6];[1,3];[2,4];[1,2]]*x^2;
 
@@ -317,7 +517,11 @@ if (showOn == true)
     disp (share_B)
 end
 
-% Stage 2(A): subsharing A
+%% Stage 2(A): subsharing A
+% Each worker node now sub-shares their share using a direct code again, of
+% degree $ m + t - 1 $ again. This will later enable each worker to
+% compute subshares of the desired product $A^T B$. 
+
 A_1 = @(x) share_A(:,:,1) + [[9,7];[10,2];[2,4];[0,7]]*x + ...
             [[0,0];[0,6];[2,9];[11,2];]*(x^2); 
 A_2 = @(x) share_A(:,:,2) + [[7,6];[7,3];[3,10];[4,3]]*x + ...
@@ -326,8 +530,10 @@ A_3 = @(x) share_A(:,:,3) + [[10,3];[11,5];[5,7];[2,3]]*x + ...
             [[7,4];[8,4];[3,5];[2,6];]*(x^2);
 A_4 = @(x) share_A(:,:,4) + [[1,0];[3,9];[9,6];[1,7]]*x + ...
             [[3,6];[6,3];[0,6];[7,7];]*(x^2);
-
 subshare_poly_A = {A_1, A_2, A_3, A_4};
+
+% Computing each worker's subshare. i.e. each worker `j` receives $A_i(j)$,
+% $\forall i \in [N]$. 
 for n=1:4
     for ndash = 1:4
         subshares_A(:,:,n,ndash) = mod ( subshare_poly_A{n}(ndash), p);
@@ -338,7 +544,13 @@ if (showOn == true)
     disp (subshares_A)
 end
 
-%Stage 2(B): subsharing B
+%% Stage 2(B): subsharing B
+% Each worker now subshares B using two codes. Both of these are designed
+% so that they can be locally recombined by each worker to form the actual
+% subshare of B. In our example, each worker `n` sends out $B_{n}^0(n')$ and
+% $B_{n}^1(n')$ to worker n'. Then, worker n' can recombine their shares
+% as $B_{n}^0(n') + n' * B_{n}^1(n')$ i.e. compute shares of 
+% $B_{n}^0(x) + x * B_{n}^1(x)$.
 B_10 = @(x) share_B(1:2,:,1) + [[3,7];[5,0]]*x + [[5,4];[0,8]]*(x^2);
 B_11 = @(x) share_B(3:4,:,1) + [[8,8];[6,8]]*x;
 
@@ -352,10 +564,14 @@ B_40 = @(x) share_B(1:2,:,4) + [[9,7];[3,1]]*x + [[5,2];[4,2]]*(x^2);
 B_41 = @(x) share_B(3:4,:,4) + [[7,10];[2,10]]*x;
 
 subshare_poly_B = { {B_10, B_11}, {B_20,B_21}, {B_30, B_31}, {B_40,B_41} };
+
+% Each worker n' receives the two shares of $B_{n}^0(n')$ and $ B_{n}^1(n')$
+% from worker n. 
 for n = 1:4
     for j = 1:2
         for ndash = 1:4
-            intermediate_subshares_B(:,:,n,j,ndash) = mod(subshare_poly_B{n}{j}(ndash),p);
+            intermediate_subshares_B(:,:,n,j,ndash) = ... 
+                mod(subshare_poly_B{n}{j}(ndash),p);
         end
     end
 end
@@ -370,7 +586,8 @@ subshares_B = zeros(m,m,N,N);
 for n=1:4
     for ndash = 1:4
         subshares_B(:,:,n,ndash) = mod(... 
-            intermediate_subshares_B(:,:,n,1,ndash) + ndash * intermediate_subshares_B(:,:,n,2,ndash), ...
+            intermediate_subshares_B(:,:,n,1,ndash) ...
+            + ndash * intermediate_subshares_B(:,:,n,2,ndash), ...
             p);
     end
 end
@@ -379,24 +596,38 @@ if (showOn == true)
     disp(subshares_B)
 end
 
-% Stage 2(B)(hidden): Each party `n` also forms B_n(x).
+%% Stage 2(B)(hidden): Each party `n` also forms B_n(x).
 % This is the polynomial that from which the shares in  
-% recom_subshares_B are created. Importantly, those shares 
-% are independently and locally calculated. Here, we need 
-% B_n(x) for Stage i.e. to calculate the O polynomials. 
+% recom_subshares_B are created. Each worker `n` has the polynomials to do so
+% Here, we need B_n(x) for Stage 3 i.e. to calculate the O polynomials.
+% But, this also helps us verify that the previous stage is correct. 
 B_1 = @(x) B_10(x) + B_11(x)*x; 
 B_2 = @(x) B_20(x) + B_21(x)*x;
 B_3 = @(x) B_30(x) + B_31(x)*x;
 B_4 = @(x) B_40(x) + B_41(x)*x;
 
 if (showOn == true)
-    syms x; assume(x, 'real')
+    syms x; assume(x, 'real');
     fprintf ("B_n(x) for n = 1,2,3,4: \n \n"); 
     disp(expand(B_1(x))); disp( expand(B_2(x)) ); 
     disp(expand(B_4(x))); disp(expand(B_4(x))); 
 end
 
-% Stage 3: Computing on subshares 
+poly_subshare_B = {B_1, B_2, B_3, B_4}; 
+for n = 1:4
+    for ndash = 1:4
+        indep_calc_subshare_B(:,:,n,ndash) = mod( ...
+            poly_subshare_B{n}(ndash), p);
+    end
+end
+% Verified against subshares_B.
+% indep_calc_subshare_B - subshares_B
+
+%% Stage 3: Computing on subshares 
+% Each worker n can compute the product of the subsharing polynomials they
+% used. Locally, each worker n' can compute the product of the subshares
+% they received, and both are guaranteed to be the same. We verify that
+% that is indeed the case. 
 syms x; assume(x, 'real');
 AB_1 = expand(A_1(x)*B_1(x)');
 AB_2 = expand(A_2(x)*B_2(x)');
@@ -412,13 +643,16 @@ for n=1:4 % for each AB_n
             poly_AB{n}(i,j) = poly2sym( mod(coeffs(poly_AB{n}(i,j)), p) ); 
         end
     end
-    % display if appropriate setting is true 
-    if(showOn == true) 
-        fprintf ("Subsharing polynomial of AB' held by %d\n", n); 
-        disp ( poly_AB{n} ); 
-    end
+%     display if appropriate setting is true 
+
 end
+if(showOn == true)
+    fprintf ("Subsharing polynomial of AB' held by %d\n", n);
+    disp ( poly_AB );
+end
+
 % Constructing the local shares of AB' at each worker.
+% Each worker now computes the local product of the shares they have.  
 subshares_AB = zeros(4,2,4,4);
 for n=1:4
     for ndash = 1:4
@@ -428,8 +662,13 @@ for n=1:4
     end
 end
 
-% Constructing the O polynomials. Hardcoded for now. 
-% Each O^(n)_j (x) = 
+% Constructing the O polynomials. Hardcoded for now. These are to help us
+% reduce the degree of the underlying polynomial of the product of
+% subshares we computed above. Each subshare of $A^T B$ lies on a degree 
+% $2(m+t-1)$ polynomial, and we must reduce it to $m+t-1$. (Here, 2).  
+% Each $O^(n)_k (x) = \Sigma_{l=0}^{t-1} R_{k,l} + x^t (D^(n)_{2k} -
+% R_{k+1,t-1})$. This way, all terms of degree higher than $m+t-1$ are
+% cancelled out. 
 O_11 = @(x) [[9,7];[10,2];[2,4];[0,7]] + [[0,0];[6,8];[3,6];[8,9]]*x; 
 O_10 = @(x) [[0,0];[0,6];[2,9];[0,2]] + [[8,4];[10,4];[4,6];[9,3]]*x; 
 
@@ -462,9 +701,9 @@ syms x; assume(x,'real');
 for n=1:4
     for ndash=1:4
         x = ndash;
-        subshares_C(:,:,n,ndash) = mod(subs(poly_AB{n}) ... % subshares_AB(:,:,n,ndash) ... 
-            - (ndash^2) * ( subshare_O(:,:,n,2,ndash) + ... 
-                    ndash*subshare_O(:,:,n,1,ndash) ) ...
+        subshares_C(:,:,n,ndash) = mod( subs(poly_AB{n}) ... %subshares_AB(:,:,n,ndash) ... 
+            - (ndash^2) * subshare_O(:,:,n,2,ndash) ... 
+                   - (ndash^3)*subshare_O(:,:,n,1,ndash) ...
             ,p);
     end
 end
@@ -473,12 +712,21 @@ if (showOn == true)
     subshares_C
 end
 
-% Stage(3)(Hidden)
+%% Stage(3)(Hidden)
 % Now we can form the polynomial forms of the 
 % subshares of C, given by the formula
 % A_n(x)B_n(x) - x^m (O^n_0 + xO^n_1)
-% This is for this case only. Theoretically, 
-% each worker should have subshare_poly_C(:,:,n)(ndash)
+% Theoretically, each worker should have subshare_poly_C(:,:,n)(ndash), 
+% i.e. share of a degree 2 polynomial.
+% Verified. 
+for n=1:4
+    for ndash = 1:4
+        x = ndash;
+        indep_calc_subshare_AB (:,:,n,ndash) = mod( ...
+            subs( poly_AB{n}), p);
+    end
+end
+
 syms x; assume(x,'real'); 
 for n=1:4
     subshare_poly_C(:,:,n) = expand ( poly_AB{n} - ... 
@@ -495,12 +743,40 @@ for n=1:4
         eval_C(:,:,n,ndash) = mod( subs(subshare_poly_C(:,:,n)), p ); 
     end
 end
-syms x
+syms x; assume(x, 'real');
 
-% Stage 4: The recombination at the master node. 
-m = fliplr(vander(1:4));
+%% Stage 4: The recombination at the master node.
+% Each node recombines their subshares of $C = A^T B$ using coefficients
+% $\lambda_1,\ldots,\lambda_N$. They send these shares to the master node, 
+% who will interpolate on them to construct the final product. 
+considered_workers = 1:3; 
+m = fliplr(vander(considered_workers));
 minv = floor(mod(inv(m) * det(m),p));
+dinv = find ( mod((1:p)*det(m), p) == 1);
 
+lambda = mod ( dinv * minv (1,:), p);
+share_C = zeros(4,2,length(considered_workers));
+for n=considered_workers
+    for ndash = considered_workers
+        share_C(:,:,n) = mod( share_C(:,:,n) + ... 
+            lambda(ndash)*subshares_C(:,:,n,ndash), p);
+    end
+end
+if ( showOn == true ) 
+    fprintf ("Each worker has the share of C: \n"); 
+    disp (share_C); 
+end
+c_0 = zeros(4,2); c_1 = zeros(4,2); c_2 = zeros(4,2);
+for i=considered_workers
+    for j=1:m
+        temp = mod( ...
+            dinv * m * [share_C(i,j,1), share_C(i,j,2), share_C(i,j,3)]'...
+            ,p); 
+        c_o(i,j) = temp(1); c_1(i,j) = temp(2); c_2(i,j) = temp(3);
+    end
+end
+
+C = [c_0, c_1]
 
 % NOTES: try: syms y; assume(y,'real'); expand(A_1(y)*B_1(y)')
 ##### SOURCE END #####
