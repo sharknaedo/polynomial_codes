@@ -13,10 +13,10 @@ a1 = [[1,2];[2,1]];
 a2 = a1 + fliplr(eye(2)); 
 a3 = a2 + fliplr(eye(2)); 
 a4 = a3 + fliplr(eye(2)); 
-mat_A = [ [a1,a2];[a3,a4] ];
+mat_A = [ [a1,a2];[a3,a4] ]
 
 % matrix B
-B = eye(4); 
+B = eye(4)
 
 % other parameters :
 N = 4; t = 1; m = 2; z = 4; p = 11;
@@ -144,7 +144,7 @@ for n = 1:4
     end
 end
 % Verified against subshares_B.
-% indep_calc_subshare_B - subshares_B
+ indep_calc_subshare_B - subshares_B
 
 %% Stage 3: Computing on subshares 
 % Each worker n can compute the product of the subsharing polynomials they
@@ -166,9 +166,8 @@ for n=1:4 % for each AB_n
             poly_AB{n}(i,j) = poly2sym( mod(coeffs(poly_AB{n}(i,j)), p) ); 
         end
     end
-%     display if appropriate setting is true 
-
 end
+% display the products of subshares computed.
 if(showOn == true)
     fprintf ("Subsharing polynomial of AB' held by %d\n", n);
     disp ( poly_AB );
