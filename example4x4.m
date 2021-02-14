@@ -5,6 +5,7 @@
 % There are 4 workers to distribute among, and we specify $t = 1$. 
 
 % Formatting options
+rng('default'); 
 showOn = true; 
 clc; format compact
 
@@ -13,13 +14,18 @@ a1 = [[1,2];[2,1]];
 a2 = a1 + fliplr(eye(2)); 
 a3 = a2 + fliplr(eye(2)); 
 a4 = a3 + fliplr(eye(2)); 
-mat_A = [ [a1,a2];[a3,a4] ]
+mat_A = [ [a1,a2];[a3,a4] ];
+mat_A = eye(4);
 
 % matrix B
-B = eye(4)
+B = [ [a1,a2];[a3,a4] ];%eye(4);
 
 % other parameters :
 N = 4; t = 1; m = 2; z = 4; p = 11;
+
+if (showOn == true)
+    disp(mat_A);
+end
 
 %% Stage 1: polynomial codes of A and B
 % We construct the direct polynomial code to share A and B to the worker
@@ -74,16 +80,16 @@ end
 % $B_{n}^1(n')$ to worker n'. Then, worker n' can recombine their shares
 % as $B_{n}^0(n') + n' * B_{n}^1(n')$ i.e. compute shares of 
 % $B_{n}^0(x) + x * B_{n}^1(x)$.
-B_10 = @(x) share_B(1:2,:,1) + [[3,7];[5,0]]*x + [[5,4];[0,8]]*(x^2);
+B_10 = @(x) share_B(1:2,:,1)  + [[5,4];[0,8]]*(x^2); %+ [[3,7];[5,0]]*x
 B_11 = @(x) share_B(3:4,:,1) + [[8,8];[6,8]]*x;
 
-B_20 = @(x) share_B(1:2,:,2) + [[1,10];[7,8]]*x + [[3,6];[5,0]]*(x^2);
+B_20 = @(x) share_B(1:2,:,2)  + [[3,6];[5,0]]*(x^2);% + [[1,10];[7,8]]*x
 B_21 = @(x) share_B(3:4,:,2) + [[2,8];[10,5]]*x;
 
-B_30 = @(x) share_B(1:2,:,3) + [[7,5];[3,7]]*x + [[3,7];[4,3]]*(x^2);
+B_30 = @(x) share_B(1:2,:,3)  + [[3,7];[4,3]]*(x^2); %+ [[7,5];[3,7]]*x
 B_31 = @(x) share_B(3:4,:,3) + [[10,9];[0,4]]*x;
 
-B_40 = @(x) share_B(1:2,:,4) + [[9,7];[3,1]]*x + [[5,2];[4,2]]*(x^2);
+B_40 = @(x) share_B(1:2,:,4)  + [[5,2];[4,2]]*(x^2); %+ [[9,7];[3,1]]*x
 B_41 = @(x) share_B(3:4,:,4) + [[7,10];[2,10]]*x;
 
 subshare_poly_B = { {B_10, B_11}, {B_20,B_21}, {B_30, B_31}, {B_40,B_41} };
@@ -144,9 +150,12 @@ for n = 1:4
     end
 end
 % Verified against subshares_B.
- indep_calc_subshare_B - subshares_B
-
+if (showOn == true) 
+    indep_calc_subshare_B - subshares_B
+end
 %% Stage 3: Computing on subshares 
+% NOTE: Using Symbolic toolbox reverses the order of polynomial terms
+
 % Each worker n can compute the product of the subsharing polynomials they
 % used. Locally, each worker n' can compute the product of the subshares
 % they received, and both are guaranteed to be the same. We verify that
@@ -158,12 +167,28 @@ AB_3 = expand(A_3(x)*B_3(x)');
 AB_4 = expand(A_4(x)*B_4(x)');
 
 poly_AB = {AB_1, AB_2, AB_3, AB_4}; 
+coeff_matrix_AB = zeros(4,2,5,4); %(row_of_coeff i,col_of_coeff j, power_of_x ,worker)
 
-% taking each coefficients modulo `p` 
 for n=1:4 % for each AB_n
     for i = 1:4 % each row of the code
         for j = 1:2 % each column of code
-            poly_AB{n}(i,j) = poly2sym( mod(coeffs(poly_AB{n}(i,j)), p) ); 
+            % Need fliplr as coeffs returns in the 
+            % zero to max coefficient order.
+            temp_vec = fliplr ( mod(coeffs(poly_AB{n}(i,j)), p) );
+ 
+            % taking each coefficients modulo `p` 
+            poly_AB{n}(i,j) = poly2sym( temp_vec ); 
+            
+            % collecting each coefficient for each worker's polynomial
+            % temp_vec has them ordered from max coefficient to zero.
+            % padding it to length 4+1=5 in case it has no
+            temp_vec = [zeros(1,5-length(temp_vec)), temp_vec];
+            for coeff_ind = 1:N+1
+                coeff_matrix_AB(i,j,coeff_ind,n) = temp_vec(coeff_ind);
+            end
+            % Now each AB' polynomial (of each worker) can be expressed as:
+            % poly_AB_n = $\sum_{i=0}^N coeff_matrix(:,:,i,n)*x^i$
+            % where `n` is the worker under consideration. 
         end
     end
 end
@@ -178,9 +203,15 @@ end
 subshares_AB = zeros(4,2,4,4);
 for n=1:4
     for ndash = 1:4
-%           x=ndash;  % evaluate the coming polynomial at x=n'
           subshares_AB(:,:,n,ndash) = mod( ... 
               subshares_A(:,:,n,ndash) * subshares_B(:,:,n,ndash)',p);
+    end
+end
+for n=1:4
+    for ndash = 1:4
+        x = ndash;
+        indep_calc_subshare_AB (:,:,n,ndash) = mod( ...
+            subs( poly_AB{n}), p);
     end
 end
 
@@ -191,19 +222,23 @@ end
 % Each $O^(n)_k (x) = \Sigma_{l=0}^{t-1} R_{k,l} + x^t (D^(n)_{2k} -
 % R_{k+1,t-1})$. This way, all terms of degree higher than $m+t-1$ are
 % cancelled out. 
-O_11 = @(x) [[9,7];[10,2];[2,4];[0,7]] + [[0,0];[6,8];[3,6];[8,9]]*x; 
-O_10 = @(x) [[0,0];[0,6];[2,9];[0,2]] + [[8,4];[10,4];[4,6];[9,3]]*x; 
-
-O_21 = @(x) [[8,8];[9,2];[9,8];[5,1]] + [[6,4];[4,9];[3,10];[8,8]]*x; 
-O_20 = @(x) [[4,8];[1,4];[2,0];[10,1]] + [[6,1];[0,0];[8,2];[2,5]]*x;
-
-O_31 = @(x) [[5,3];[5,6];[9,5];[9,8]] + [[0,2];[0,2];[10,10];[10,2]]*x; 
-O_30 = @(x) [[8,8];[9,2];[4,2];[8,6]] + [[1,2];[1,9];[2,3];[0,9]]*x;
-
-O_41 = @(x) [[0,9];[4,3];[7,6];[3,8]] + [[8,2];[1,0];[9,9];[10,6]]*x; 
-O_40 = @(x) [[10,2];[0,3];[7,10];[2,3]] + [[1,10];[4,1];[8,9];[4,10]]*x;
+randness = randi ([0,10],[4,2,2,4]);
+% Worker 1 computes ...
+O_11 = @(x) randness(:,:,1,1) + coeff_matrix_AB(:,:,1,1)*x;
+O_10 = @(x) randness(:,:,2,1) + ( coeff_matrix_AB(:,:,2,1) - randness(:,:,1,1) )*x;
+% Worker 2 computes ...
+O_21 = @(x) randness(:,:,1,2) + coeff_matrix_AB(:,:,1,2)*x;
+O_20 = @(x) randness(:,:,2,2) + ( coeff_matrix_AB(:,:,2,2) - randness(:,:,1,2) )*x;
+% Worker 3 computes ...
+O_31 = @(x) randness(:,:,1,3) + coeff_matrix_AB(:,:,1,3)*x;
+O_30 = @(x) randness(:,:,2,3) + ( coeff_matrix_AB(:,:,2,3) - randness(:,:,1,3) )*x;
+% Worker 4 computes ...
+O_41 = @(x) randness(:,:,1,4) + coeff_matrix_AB(:,:,1,4)*x;
+O_40 = @(x) randness(:,:,2,4) + ( coeff_matrix_AB(:,:,2,4) - randness(:,:,1,4) )*x;
 
 poly_O = {{O_11,O_10},{O_21,O_20},{O_31,O_30},{O_41,O_40}};
+
+% Computing what each worker sends in O-shares to every other.
 subshare_O = zeros(4,2,4,2,4); 
 for n = 1:4
     for j = 1:2
@@ -220,18 +255,19 @@ end
 % Each worker can now calculate their subshare of C, 
 % using the shares they receieved of A_n, B_n and the Os.
 syms x; assume(x,'real'); 
+subshares_C = zeros (4,2,4,4);
 for n=1:4
     for ndash=1:4
         x = ndash;
-        subshares_C(:,:,n,ndash) = mod( subs(poly_AB{n}) ... %subshares_AB(:,:,n,ndash) ... 
-            - (ndash^2) * subshare_O(:,:,n,2,ndash) ... 
-                   - (ndash^3)*subshare_O(:,:,n,1,ndash) ...
+        subshares_C(:,:,n,ndash) = mod( subshares_AB(:,:,n,ndash) ... 
+            - (ndash^2) * ( subshare_O(:,:,n,2,ndash) ... 
+                   + ndash*subshare_O(:,:,n,1,ndash) )...
             ,p);
     end
 end
 if (showOn == true)
     fprintf ("Each worker's subshares of C:\n"); 
-    subshares_C
+    disp ( subshares_C )
 end
 
 %% Stage(3)(Hidden)
@@ -241,18 +277,18 @@ end
 % Theoretically, each worker should have subshare_poly_C(:,:,n)(ndash), 
 % i.e. share of a degree 2 polynomial.
 % Verified. 
-for n=1:4
-    for ndash = 1:4
-        x = ndash;
-        indep_calc_subshare_AB (:,:,n,ndash) = mod( ...
-            subs( poly_AB{n}), p);
-    end
-end
+% for n=1:4
+%     for ndash = 1:4
+%         x = ndash;
+%         indep_calc_subshare_AB (:,:,n,ndash) = mod( ...
+%             subs( poly_AB{n}), p);
+%     end
+% end
 
 syms x; assume(x,'real'); 
 for n=1:4
-    subshare_poly_C(:,:,n) = expand ( poly_AB{n} - ... 
-        x^2 * ( poly_O{n}{2}(x) + x*poly_O{n}{1}(x) ) );
+    subshare_poly_C(:,:,n) =   expand ( poly_AB{n} - ... 
+        (x^2) * ( poly_O{n}{2}(x) + x*poly_O{n}{1}(x) ) );
 end
 if ( showOn == true )
     fprintf ("Polynomial form of the shares of C at each worker:\n"); 
@@ -265,39 +301,50 @@ for n=1:4
         eval_C(:,:,n,ndash) = mod( subs(subshare_poly_C(:,:,n)), p ); 
     end
 end
+if ( showOn == true )
+    fprintf("Checking if the evaluated scheme evaluates to local subshares:\n")
+    eval_C - subshares_C
+end
+% for safety
 syms x; assume(x, 'real');
 
 %% Stage 4: The recombination at the master node.
 % Each node recombines their subshares of $C = A^T B$ using coefficients
 % $\lambda_1,\ldots,\lambda_N$. They send these shares to the master node, 
 % who will interpolate on them to construct the final product. 
-considered_workers = 1:3; 
-m = fliplr(vander(considered_workers));
-minv = floor(mod(inv(m) * det(m),p));
-dinv = find ( mod((1:p)*det(m), p) == 1);
 
-lambda = mod ( dinv * minv (1,:), p);
+% Assuming that workers 1,2,3 all return values, we determine the
+% recombination vector $\lambda_n$
+considered_workers = 1:3; 
+mat = vander(considered_workers);
+dinv_temp = mod((1:p)*det(mat), p);
+dinv = find ( fix(dinv_temp) == 1);
+minv = dinv * floor(mod(inv(mat) * det(mat),p));
+
+lambda = mod ( minv (1,:), p);
 share_C = zeros(4,2,length(considered_workers));
 for n=considered_workers
     for ndash = considered_workers
-        share_C(:,:,n) = mod( share_C(:,:,n) + ... 
-            lambda(ndash)*subshares_C(:,:,n,ndash), p);
+        share_C(:,:,n) = share_C(:,:,n) + lambda(ndash)*subshares_C(:,:,n,ndash);
     end
 end
+share_C = mod( share_C, p);
 if ( showOn == true ) 
     fprintf ("Each worker has the share of C: \n"); 
     disp (share_C); 
 end
 c_0 = zeros(4,2); c_1 = zeros(4,2); c_2 = zeros(4,2);
-for i=considered_workers
-    for j=1:m
-        temp = mod( ...
-            dinv * m * [share_C(i,j,1), share_C(i,j,2), share_C(i,j,3)]'...
+for i=1:3%considered_workers
+    for j=1:N/m
+        temp(:,i,j) = mod( ...
+              minv * [share_C(i,j,1), share_C(i,j,2), share_C(i,j,3)]'...
             ,p); 
-        c_o(i,j) = temp(1); c_1(i,j) = temp(2); c_2(i,j) = temp(3);
+        c_o(i,j) = temp(1,i,j); 
+        c_1(i,j) = temp(2,i,j); 
+        c_2(i,j) = temp(3,i,j);
     end
 end
 
-C = [c_0, c_1]
+C = [c_0, c_1, c_2]
 
 % NOTES: try: syms y; assume(y,'real'); expand(A_1(y)*B_1(y)')
