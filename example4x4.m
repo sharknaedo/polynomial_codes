@@ -6,7 +6,7 @@
 
 % Formatting options
 rng('default'); 
-showOn = true; 
+showOn = false; 
 clc; format compact
 
 %making matrix A
@@ -15,10 +15,9 @@ a2 = a1 + fliplr(eye(2));
 a3 = a2 + fliplr(eye(2)); 
 a4 = a3 + fliplr(eye(2)); 
 mat_A = [ [a1,a2];[a3,a4] ];
-mat_A = eye(4);
 
 % matrix B
-B = [ [a1,a2];[a3,a4] ];%eye(4);
+B = eye(4);
 
 % other parameters :
 N = 4; t = 1; m = 2; z = 4; p = 11;
@@ -50,14 +49,16 @@ end
 % Each worker node now sub-shares their share using a direct code again, of
 % degree $ m + t - 1 $ again. This will later enable each worker to
 % compute subshares of the desired product $A^T B$. 
+% For this particular code, each sharing polynomial has the form 
+% A_n(x) = [A]_n + randi(4,2) * x 
 
-A_1 = @(x) share_A(:,:,1) + [[9,7];[10,2];[2,4];[0,7]]*x + ...
+A_1 = @(x) share_A(:,:,1) +  ... %[[9,7];[10,2];[2,4];[0,7]]*x +
             [[0,0];[0,6];[2,9];[11,2];]*(x^2); 
-A_2 = @(x) share_A(:,:,2) + [[7,6];[7,3];[3,10];[4,3]]*x + ...
+A_2 = @(x) share_A(:,:,2) +  ... %[[7,6];[7,3];[3,10];[4,3]]*x +
             [[3,4];[2,11];[3,5];[5,3];]*(x^2);
-A_3 = @(x) share_A(:,:,3) + [[10,3];[11,5];[5,7];[2,3]]*x + ...
+A_3 = @(x) share_A(:,:,3) + ... %+ [[10,3];[11,5];[5,7];[2,3]]*x 
             [[7,4];[8,4];[3,5];[2,6];]*(x^2);
-A_4 = @(x) share_A(:,:,4) + [[1,0];[3,9];[9,6];[1,7]]*x + ...
+A_4 = @(x) share_A(:,:,4)  + ... %+ [[1,0];[3,9];[9,6];[1,7]]*x
             [[3,6];[6,3];[0,6];[7,7];]*(x^2);
 subshare_poly_A = {A_1, A_2, A_3, A_4};
 
@@ -138,8 +139,11 @@ B_4 = @(x) B_40(x) + B_41(x)*x;
 if (showOn == true)
     syms x; assume(x, 'real');
     fprintf ("B_n(x) for n = 1,2,3,4: \n \n"); 
-    disp(expand(B_1(x))); disp( expand(B_2(x)) ); 
-    disp(expand(B_4(x))); disp(expand(B_4(x))); 
+    fprintf ("n=1: \n");disp(expand(B_1(x)));  
+    fprintf ("\n n=2: \n");disp(expand(B_2(x))); 
+    fprintf ("\n n=3: \n");disp(expand(B_3(x))); 
+    fprintf ("\n n=4: \n");disp(expand(B_4(x))); 
+    fprintf ("\n");
 end
 
 poly_subshare_B = {B_1, B_2, B_3, B_4}; 
@@ -151,6 +155,7 @@ for n = 1:4
 end
 % Verified against subshares_B.
 if (showOn == true) 
+    fprintf ("Verifying that polynomial-generated shares of B \nand its local subshares are equal:")
     indep_calc_subshare_B - subshares_B
 end
 %% Stage 3: Computing on subshares 
@@ -200,15 +205,15 @@ end
 
 % Constructing the local shares of AB' at each worker.
 % Each worker now computes the local product of the shares they have.  
+syms x; assume(x, 'real');
 subshares_AB = zeros(4,2,4,4);
 for n=1:4
     for ndash = 1:4
-          subshares_AB(:,:,n,ndash) = mod( ... 
-              subshares_A(:,:,n,ndash) * subshares_B(:,:,n,ndash)',p);
-    end
-end
-for n=1:4
-    for ndash = 1:4
+        % Calculating subshares at each location
+        subshares_AB(:,:,n,ndash) = mod( ...
+            subshares_A(:,:,n,ndash) * subshares_B(:,:,n,ndash)',p);
+        % Calculating the polynomial evaluations i.e.
+        % the subshares of AB' ideally speaking.
         x = ndash;
         indep_calc_subshare_AB (:,:,n,ndash) = mod( ...
             subs( poly_AB{n}), p);
