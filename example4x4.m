@@ -64,8 +64,8 @@ subshare_poly_A = {A_1, A_2, A_3, A_4};
 
 % Computing each worker's subshare. i.e. each worker `j` receives $A_i(j)$,
 % $\forall i \in [N]$. 
-for n=1:4
-    for ndash = 1:4
+for n=1:N
+    for ndash = 1:N
         subshares_A(:,:,n,ndash) = mod ( subshare_poly_A{n}(ndash), p);
     end
 end
@@ -97,9 +97,9 @@ subshare_poly_B = { {B_10, B_11}, {B_20,B_21}, {B_30, B_31}, {B_40,B_41} };
 
 % Each worker n' receives the two shares of $B_{n}^0(n')$ and $ B_{n}^1(n')$
 % from worker n. 
-for n = 1:4
-    for j = 1:2
-        for ndash = 1:4
+for n = 1:N
+    for j = 1:m
+        for ndash = 1:N
             intermediate_subshares_B(:,:,n,j,ndash) = ... 
                 mod(subshare_poly_B{n}{j}(ndash),p);
         end
@@ -113,8 +113,8 @@ end
 % Each worker calculates his subshare of B i.e. B_n(ndash)
 % Verified.
 subshares_B = zeros(m,m,N,N);
-for n=1:4
-    for ndash = 1:4
+for n=1:N
+    for ndash = 1:N
         subshares_B(:,:,n,ndash) = mod(... 
             intermediate_subshares_B(:,:,n,1,ndash) ...
             + ndash * intermediate_subshares_B(:,:,n,2,ndash), ...
@@ -147,8 +147,8 @@ if (showOn == true)
 end
 
 poly_subshare_B = {B_1, B_2, B_3, B_4}; 
-for n = 1:4
-    for ndash = 1:4
+for n = 1:N
+    for ndash = 1:N
         indep_calc_subshare_B(:,:,n,ndash) = mod( ...
             poly_subshare_B{n}(ndash), p);
     end
@@ -174,9 +174,9 @@ AB_4 = expand(A_4(x)*B_4(x)');
 poly_AB = {AB_1, AB_2, AB_3, AB_4}; 
 coeff_matrix_AB = zeros(4,2,5,4); %(row_of_coeff i,col_of_coeff j, power_of_x ,worker)
 
-for n=1:4 % for each AB_n
-    for i = 1:4 % each row of the code
-        for j = 1:2 % each column of code
+for n=1:N % for each AB_n
+    for i = 1:N % each row of the code
+        for j = 1:m % each column of code
             % Need fliplr as coeffs returns in the 
             % zero to max coefficient order.
             temp_vec = fliplr ( mod(coeffs(poly_AB{n}(i,j)), p) );
@@ -207,8 +207,8 @@ end
 % Each worker now computes the local product of the shares they have.  
 syms x; assume(x, 'real');
 subshares_AB = zeros(4,2,4,4);
-for n=1:4
-    for ndash = 1:4
+for n=1:N
+    for ndash = 1:N
         % Calculating subshares at each location
         subshares_AB(:,:,n,ndash) = mod( ...
             subshares_A(:,:,n,ndash) * subshares_B(:,:,n,ndash)',p);
@@ -245,9 +245,9 @@ poly_O = {{O_11,O_10},{O_21,O_20},{O_31,O_30},{O_41,O_40}};
 
 % Computing what each worker sends in O-shares to every other.
 subshare_O = zeros(4,2,4,2,4); 
-for n = 1:4
-    for j = 1:2
-        for ndash = 1:4
+for n = 1:N
+    for j = 1:m
+        for ndash = 1:N
             subshare_O(:,:,n,j,ndash) = mod ( poly_O{n}{j}(ndash), p ); 
         end
     end
@@ -261,8 +261,8 @@ end
 % using the shares they receieved of A_n, B_n and the Os.
 syms x; assume(x,'real'); 
 subshares_C = zeros (4,2,4,4);
-for n=1:4
-    for ndash=1:4
+for n=1:N
+    for ndash=1:N
         x = ndash;
         subshares_C(:,:,n,ndash) = mod( subshares_AB(:,:,n,ndash) ... 
             - (ndash^2) * ( subshare_O(:,:,n,2,ndash) ... 
@@ -291,7 +291,7 @@ end
 % end
 
 syms x; assume(x,'real'); 
-for n=1:4
+for n=1:N
     subshare_poly_C(:,:,n) =   expand ( poly_AB{n} - ... 
         (x^2) * ( poly_O{n}{2}(x) + x*poly_O{n}{1}(x) ) );
 end
@@ -300,8 +300,8 @@ if ( showOn == true )
     subshare_poly_C
 end
     
-for n=1:4
-    for ndash = 1:4
+for n=1:N
+    for ndash = 1:N
         x = ndash;
         eval_C(:,:,n,ndash) = mod( subs(subshare_poly_C(:,:,n)), p ); 
     end
